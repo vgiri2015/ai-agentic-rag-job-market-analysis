@@ -488,57 +488,59 @@ OPENAI_API_KEY=your_openai_key
 SERPAPI_API_KEY=your_serpapi_key
 ```
 
-## Usage
+## Recent Updates and Improvements
 
-Run the job market analysis workflow:
+### 1. Enhanced Report Generation
+- **Improved Statistical Analysis**
+  - Better salary parsing with support for ranges and k-suffixes
+  - Enhanced remote work detection in both job descriptions and extensions
+  - More accurate AI role identification using comprehensive keyword matching
+  - Added average salary calculations and distribution analysis
+
+- **Report Format Improvements**
+  - Structured markdown reports with clear sections
+  - Detailed statistics with formatted numbers
+  - Executive summaries with actionable insights
+  - JSON reports for programmatic access
+
+### 2. Workflow Optimization
+- **Streamlined Processing**
+  - Removed dependency on LangGraph state machine for simpler async workflow
+  - Added support for both full analysis and report-only modes
+  - Improved caching of intermediate results
+  - Better error handling and logging
+
+- **Performance Improvements**
+  - Reduced API calls by processing data in memory
+  - Optimized job data extraction
+  - Added batch processing capabilities
+  - Improved memory efficiency
+
+### 3. Usage Instructions
+
+Run the complete analysis workflow:
 ```bash
-python agents/job_market_workflow.py
+python -m agents.main
 ```
 
-Optional flags:
-- `--force-new`: Force new data collection instead of using cached data
+Generate a new report using existing data:
+```bash
+python -m agents.main --report-only
+```
 
-## Output Files
+Force new data collection:
+```bash
+python -m agents.main --force-new
+```
 
-The system generates several output files in the `data` directory:
-
-1. Raw Data (JSON):
-- `job_data.json`: Collected job postings
-- `tech_analysis.json`: Tech stack analysis
-- `market_report.json`: Market analysis
-- `ai_impact_analysis.json`: AI impact analysis
-- `comprehensive_report.json`: Final comprehensive report
-
-2. Human-Readable Reports (Markdown):
-- `market_report.md`: Market analysis report
-- `ai_impact_analysis.md`: AI impact analysis report
-- `comprehensive_report.md`: Final comprehensive report
-
-## Architecture Details
-
-### Agent System
-
-Each agent is specialized for a specific task:
-- Collection: Job data gathering and storage
-- Analysis: Tech stack and market analysis
-- Reporting: Report generation and insights
-- Impact Analysis: AI impact assessment
-- Final Reporting: Comprehensive report creation
-
-### RAG Implementation
-
-The system uses RAG for enhanced analysis:
-1. Retrieval: Fetches relevant job data and previous analyses
-2. Augmentation: Enhances data with structured insights
-3. Generation: Creates detailed reports and analyses
-
-### LangGraph Workflow
-
-The workflow is managed by LangGraph:
-1. State Management: Tracks analysis progress
-2. Task Transitions: Coordinates agent activities
-3. Error Handling: Manages failures and retries
-4. Async Support: Handles concurrent operations
+### 4. Output Files
+- `data/job_data.json`: Raw job listing data
+- `data/tech_analysis.json`: Technical requirements analysis
+- `data/market_report.json`: Market trend analysis
+- `data/ai_impact_analysis.json`: AI impact analysis
+- `data/workflow_state.json`: Complete workflow state with timestamp
+- `reports/final_report.md`: Final report in markdown format
+- `reports/final_report.json`: Final report in JSON format
 
 ## Future Enhancements
 

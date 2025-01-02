@@ -1,7 +1,8 @@
 """Final report generation agent."""
 import json
 import logging
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional
 from .base_agent import BaseJobAgent
 from pathlib import Path
 
@@ -10,6 +11,98 @@ logger = logging.getLogger(__name__)
 class FinalReporterAgent(BaseJobAgent):
     """Agent for generating comprehensive final reports."""
     
+    def _extract_job_essentials(self, job: Dict) -> Dict:
+        """Extract only essential information from a job listing to reduce tokens."""
+        # Check for AI/ML in title or description
+        title = job.get("title", "").lower()
+        description = job.get("description", "").lower()
+        ai_terms = ["ai", "machine learning", "ml", "deep learning", "neural network", "data scientist"]
+        is_ai = any(term in title or term in description for term in ai_terms)
+        
+        # Check for remote work in extensions or description
+        extensions = job.get("extensions", [])
+        is_remote = any("remote" in ext.lower() for ext in extensions) or "remote" in description
+        
+        return {
+            "title": job.get("title", ""),
+            "salary": self._parse_salary(job.get("salary", ""), description),
+            "is_remote": is_remote,
+            "is_ai": is_ai
+        }
+    
+    def _parse_salary(self, salary_str: str, description: str) -> Optional[float]:
+        """Parse salary from string, looking for both explicit salary and salary ranges."""
+        if not salary_str and description:
+            # Try to find salary in description
+            matches = re.findall(r'\$\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?)\s*k?', description.lower())
+            if matches:
+                # Use the first match
+                salary_str = matches[0]
+        
+        if not salary_str:
+            return None
+            
+        try:
+            # Remove common non-numeric characters
+            clean_salary = salary_str.replace("$", "").replace(",", "").replace("k", "000")
+            
+            # Handle ranges by taking the average
+            if "-" in clean_salary:
+                low, high = map(float, clean_salary.split("-"))
+                return (low + high) / 2
+            
+            return float(clean_salary)
+        except (ValueError, TypeError):
+            return None
+    
+    def _analyze_jobs(self, jobs: List[Dict]) -> Dict:
+        """Analyze jobs directly without using LLM."""
+        stats = {
+            "total_jobs": len(jobs),
+            "ai_specific_roles": 0,
+            "remote_jobs": 0,
+            "salary_data": {
+                "total_with_salary": 0,
+                "ranges": {"0_50k": 0, "50_100k": 0, "100k_plus": 0},
+                "average": 0,
+                "total_salary": 0
+            }
+        }
+        
+        for job in jobs:
+            # Count AI roles
+            if job["is_ai"]:
+                stats["ai_specific_roles"] += 1
+            
+            # Count remote jobs
+            if job["is_remote"]:
+                stats["remote_jobs"] += 1
+            
+            # Analyze salary
+            if job["salary"]:
+                salary = job["salary"]
+                stats["salary_data"]["total_with_salary"] += 1
+                stats["salary_data"]["total_salary"] += salary
+                
+                if salary <= 50000:
+                    stats["salary_data"]["ranges"]["0_50k"] += 1
+                elif salary <= 100000:
+                    stats["salary_data"]["ranges"]["50_100k"] += 1
+                else:
+                    stats["salary_data"]["ranges"]["100k_plus"] += 1
+        
+        # Calculate percentages and averages
+        total = stats["total_jobs"]
+        stats["remote_percentage"] = round((stats["remote_jobs"] / total) * 100, 1) if total > 0 else 0
+        stats["ai_percentage"] = round((stats["ai_specific_roles"] / total) * 100, 1) if total > 0 else 0
+        
+        if stats["salary_data"]["total_with_salary"] > 0:
+            stats["salary_data"]["average"] = round(
+                stats["salary_data"]["total_salary"] / stats["salary_data"]["total_with_salary"], 2
+            )
+        
+        return stats
+    
     def generate_comprehensive_report(
         self,
         job_data: List[Dict],
@@ -17,284 +110,91 @@ class FinalReporterAgent(BaseJobAgent):
         market_report: Dict,
         ai_impact: Dict
     ) -> Dict:
-        """Generate comprehensive final report."""
+        """Generate comprehensive final report using LLM analysis."""
         logger.info("Generating comprehensive final report")
         
         if not all([job_data, tech_analysis, market_report, ai_impact]):
             raise ValueError("Missing required data for report generation")
-            
-        # Create report prompt
-        system_prompt = "You are a job market analysis expert."
-        user_prompt = """Generate a comprehensive report on the job market analysis. Include:
-        1. Executive Summary
-        2. Job Market Overview
-        3. Technology Landscape
-        4. AI Impact Analysis
-        5. Future Trends and Recommendations
-        
-        Use the following data:
-        Job Data: {job_data}
-        Tech Analysis: {tech_analysis}
-        Market Report: {market_report}
-        AI Impact: {ai_impact}
-        
-        Format the response as a JSON object with these sections as keys.
-        """
-        
+
         try:
-            # Get report from language model
-            response = self.get_completion(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt.format(
-                    job_data=json.dumps(job_data[:10]),  # Sample of jobs
-                    tech_analysis=json.dumps(tech_analysis),
-                    market_report=json.dumps(market_report),
-                    ai_impact=json.dumps(ai_impact)
-                )
-            )
+            # Process jobs directly without chunking
+            logger.info("Analyzing job data...")
+            essential_jobs = [self._extract_job_essentials(job) for job in job_data]
+            statistics = self._analyze_jobs(essential_jobs)
             
-            report = json.loads(response)
-            
-            # Save report
-            self.save_json(report, "final_report.json")
-            
-            return report
-            
-        except Exception as e:
-            logger.error(f"Error generating final report: {str(e)}")
-            raise
-
-    def _combine_agent_data(self, job_data: Dict, tech_analysis: Dict, market_report: Dict, ai_impact: Dict) -> Dict:
-        """Combine data from all agents for comprehensive analysis."""
-        # Ensure we're working with lists
-        def get_list_items(data, key=None, max_items=15):
-            try:
-                if isinstance(data, (list, tuple)):
-                    items = list(data)
-                elif isinstance(data, dict) and key:
-                    items = list(data.get(key, []))
-                else:
-                    items = []
-                
-                return items[:max_items] if items else []
-            except Exception as e:
-                logger.warning(f"Error processing items for {key}: {str(e)}")
-                return []
-
-        # Process AI impact data
-        ai_impact_data = {
-            "ai_role_analysis": get_list_items(ai_impact, "ai_role_analysis"),
-            "required_ai_skills": get_list_items(ai_impact, "required_ai_skills"),
-            "impact_on_roles": get_list_items(ai_impact, "impact_on_traditional_roles"),
-            "future_adaptations": get_list_items(ai_impact, "future_adaptations")
-        }
-        
-        # Process job market data
-        job_market_data = {
-            "job_postings": get_list_items(job_data),
-            "skills_required": get_list_items(job_data, "skills_required"),
-            "job_trends": get_list_items(job_data, "trends")
-        }
-        
-        # Process technology analysis
-        tech_analysis_data = {
-            "tech_stacks": get_list_items(tech_analysis, "tech_stacks"),
-            "emerging_technologies": get_list_items(tech_analysis, "emerging_tech"),
-            "tool_requirements": get_list_items(tech_analysis, "tools")
-        }
-        
-        # Process market insights
-        market_insights_data = {
-            "market_trends": get_list_items(market_report, "trends"),
-            "skill_demands": get_list_items(market_report, "skills"),
-            "industry_shifts": get_list_items(market_report, "shifts")
-        }
-
-        return {
-            "job_market_data": job_market_data,
-            "technology_analysis": tech_analysis_data,
-            "market_insights": market_insights_data,
-            "ai_impact_analysis": ai_impact_data
-        }
-
-    def _generate_comprehensive_report(self, combined_data: Dict) -> Dict:
-        """Generate a comprehensive report with detailed AI skills and trends analysis."""
-        system_prompt = """You are a leading AI technology and job market expert. Analyze the provided data and create a detailed report covering AI skills, trends, and transformations across different roles and sectors."""
-        
-        # Split the analysis into smaller chunks
-        sections = [
-            {
-                "name": "current_ai_skills",
-                "title": "Current AI Skills for Developers",
-                "data": combined_data.get("ai_impact_analysis", {}),
-                "focus": ["LLM frameworks", "AI/ML development", "Cloud services", "Vector databases", "Infrastructure"]
-            },
-            {
-                "name": "leadership_skills",
-                "title": "Leadership AI Skills",
-                "data": combined_data.get("market_insights", {}),
-                "focus": ["Strategy", "Team structure", "Ethics", "Risk management", "ROI"]
-            },
-            {
-                "name": "data_engineering_trends",
-                "title": "Data Engineering/Science Trends",
-                "data": combined_data.get("technology_analysis", {}),
-                "focus": ["Data architecture", "Analytics", "MLOps", "Governance"]
-            },
-            {
-                "name": "essential_ai_coding",
-                "title": "Essential AI Coding Skills",
-                "data": combined_data.get("job_market_data", {}),
-                "focus": ["LLM integration", "RAG", "Fine-tuning", "Prompt engineering", "Testing"]
-            },
-            {
-                "name": "saas_ai_revolution",
-                "title": "AI Revolution in SaaS",
-                "data": combined_data.get("market_insights", {}),
-                "focus": ["Architecture", "Design patterns", "Pricing", "Integration", "UX"]
-            },
-            {
-                "name": "rag_frameworks",
-                "title": "RAG Frameworks and Tools",
-                "data": combined_data.get("technology_analysis", {}),
-                "focus": ["LlamaIndex", "LangChain", "Vector stores", "Optimization"]
-            },
-            {
-                "name": "agentic_ai_skills",
-                "title": "Agentic AI Skills",
-                "data": combined_data.get("ai_impact_analysis", {}),
-                "focus": ["Architectures", "Tool integration", "Planning", "Multi-agent", "State management"]
-            },
-            {
-                "name": "developer_upskilling",
-                "title": "Software Developer Upskilling",
-                "data": combined_data.get("job_market_data", {}),
-                "focus": ["AI concepts", "Infrastructure", "Testing", "Security", "Workflows"]
-            },
-            {
-                "name": "big_data_evolution",
-                "title": "Big Data Evolution",
-                "data": combined_data.get("technology_analysis", {}),
-                "focus": ["AI platforms", "Processing", "Feature engineering", "Training", "Quality"]
-            }
-        ]
-        
-        final_report = {}
-        
-        for section in sections:
-            try:
-                user_prompt = f"""Based on the provided data, analyze the {section["title"]} focusing on:
-                {chr(10).join(f"- {item}" for item in section["focus"])}
-                
-                Use this data for analysis:
-                {json.dumps(section["data"], indent=2)}
-                
-                Format the response as a JSON object with these keys:
-                - current_state
-                - required_skills
-                - implementation_strategies
-                - future_trends
-                - recommendations
-                
-                Keep the response concise and actionable."""
-
-                messages = [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
-                
-                response = self.get_completion(messages)
-                final_report[section["name"]] = json.loads(response)
-                
-            except Exception as e:
-                logger.error(f"Error processing section {section['name']}: {str(e)}")
-                final_report[section["name"]] = {
-                    "error": f"Failed to process section: {str(e)}",
-                    "current_state": [],
-                    "required_skills": [],
-                    "implementation_strategies": [],
-                    "future_trends": [],
-                    "recommendations": []
+            # Extract key insights
+            insights = {
+                "statistics": statistics,
+                "tech_trends": tech_analysis.get("emerging_trends", [])[:3],
+                "market_trends": market_report.get("market_trends", [])[:3],
+                "ai_impact": {
+                    "summary": ai_impact.get("impact_summary", ""),
+                    "key_skills": ai_impact.get("required_ai_skills", [])[:5]
                 }
-        
-        return final_report
-
-    def _generate_markdown_report(self, report_data: Dict) -> str:
-        """Convert the report data to markdown format."""
-        sections = [
-            ("Current AI Skills", "current_ai_skills"),
-            ("Leadership AI Skills", "leadership_skills"),
-            ("Data Engineering Trends", "data_engineering_trends"),
-            ("Essential AI Coding Skills", "essential_ai_coding"),
-            ("AI Revolution in SaaS", "saas_ai_revolution"),
-            ("RAG Frameworks and Tools", "rag_frameworks"),
-            ("Agentic AI Skills", "agentic_ai_skills"),
-            ("Software Developer Upskilling", "developer_upskilling"),
-            ("Big Data Evolution", "big_data_evolution")
-        ]
-        
-        markdown = "# AI Impact on Job Market Analysis Report\n\n"
-        
-        for title, key in sections:
-            section_data = report_data.get(key, {})
-            if not section_data:
-                continue
-                
-            markdown += f"## {title}\n\n"
+            }
             
-            if "current_state" in section_data:
-                markdown += "### Current State\n"
-                for item in section_data["current_state"]:
-                    markdown += f"- {item}\n"
-                markdown += "\n"
-                
-            if "required_skills" in section_data:
-                markdown += "### Required Skills\n"
-                for item in section_data["required_skills"]:
-                    markdown += f"- {item}\n"
-                markdown += "\n"
-                
-            if "implementation_strategies" in section_data:
-                markdown += "### Implementation Strategies\n"
-                for item in section_data["implementation_strategies"]:
-                    markdown += f"- {item}\n"
-                markdown += "\n"
-                
-            if "future_trends" in section_data:
-                markdown += "### Future Trends\n"
-                for item in section_data["future_trends"]:
-                    markdown += f"- {item}\n"
-                markdown += "\n"
-                
-            if "recommendations" in section_data:
-                markdown += "### Recommendations\n"
-                for item in section_data["recommendations"]:
-                    markdown += f"- {item}\n"
-                markdown += "\n"
-        
-        return markdown
-
-    def generate_report(self, job_data: Dict, tech_analysis: Dict, market_report: Dict, ai_impact: Dict) -> Dict:
-        """Generate final report using data from all agents."""
-        logger.info("Generating final report from combined agent data")
-        
-        if not all([job_data, tech_analysis, market_report, ai_impact]):
-            raise ValueError("Missing required data for report generation")
+            # Generate the analysis
+            analysis_prompt = f"""Generate a focused job market analysis report in this exact JSON format:
+            {{
+                "executive_summary": [
+                    <string: key finding about overall job market>,
+                    <string: key finding about AI roles and skills>,
+                    <string: key finding about remote work and salary trends>
+                ],
+                "market_overview": {{
+                    "key_findings": [<string: finding about current state>, <string: finding about skills>],
+                    "opportunities": [<string: opportunity in AI/ML>, <string: opportunity in work arrangements>]
+                }},
+                "future_outlook": {{
+                    "trends": [<string: tech trend>, <string: workplace trend>],
+                    "recommendations": [<string: recommendation for professionals>, <string: recommendation for companies>]
+                }}
+            }}
             
-        try:
-            # Combine data from all agents
-            combined_data = self._combine_agent_data(job_data, tech_analysis, market_report, ai_impact)
+            Base your analysis on these insights: {json.dumps(insights)}
+            Focus on actionable insights and clear trends.
+            """
             
-            # Generate comprehensive report
-            report = self._generate_comprehensive_report(combined_data)
+            analysis_response = self.get_completion(analysis_prompt)
+            try:
+                # Try to find JSON object in the text
+                start = analysis_response.find('{')
+                end = analysis_response.rfind('}')
+                if start >= 0 and end >= 0:
+                    report = json.loads(analysis_response[start:end+1])
+                else:
+                    report = json.loads(analysis_response)
+            except Exception as e:
+                logger.error(f"Error parsing analysis response: {str(e)}")
+                report = {"error": "Failed to parse analysis"}
             
-            # Save JSON report
+            report["statistics"] = statistics
+            
+            # Generate markdown report
+            markdown_prompt = f"""Convert this job market analysis to a clear markdown document.
+            Use ## for main sections and ### for subsections.
+            Use bullet points (*) for lists.
+            Include these sections:
+            1. Executive Summary
+            2. Key Statistics (include all numbers)
+            3. Market Overview
+            4. Future Outlook
+            
+            Format salary and percentage data clearly.
+            Report data: {json.dumps(report)}
+            """
+            
+            markdown_response = self.get_completion(markdown_prompt)
+            
+            # Save reports
             self.save_json(report, "final_report.json")
             
-            # Generate and save markdown report
-            markdown_report = self._generate_markdown_report(report)
-            markdown_path = Path("data") / "final_report.md"
-            markdown_path.write_text(markdown_report)
+            # Ensure reports directory exists
+            Path("reports").mkdir(exist_ok=True)
+            
+            # Save markdown report
+            with open("reports/final_report.md", "w") as f:
+                f.write(markdown_response)
             
             return report
             
