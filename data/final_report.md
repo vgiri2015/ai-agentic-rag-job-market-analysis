@@ -157,13 +157,20 @@ pie
 
 ### AI Development Tools Adoption
 ```mermaid
-bar
-    title AI Development Tools Adoption Rate (%)
-    LangChain: 42
-    LlamaIndex: 38
-    HuggingFace: 35
-    MLflow: 32
-    Ray: 28
+graph LR
+    subgraph "AI Development Tools Adoption Rates"
+        A["LangChain<br/>42%"]
+        B["LlamaIndex<br/>38%"]
+        C["Hugging Face<br/>35%"]
+        D["MLflow<br/>32%"]
+        E["Ray<br/>28%"]
+    end
+    
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style B fill:#bbf,stroke:#333,stroke-width:2px
+    style C fill:#bfb,stroke:#333,stroke-width:2px
+    style D fill:#fbb,stroke:#333,stroke-width:2px
+    style E fill:#fff,stroke:#333,stroke-width:2px
 ```
 
 ### Vector Database Market Share
