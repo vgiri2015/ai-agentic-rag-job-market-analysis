@@ -1,11 +1,11 @@
-"""Base agent class for job market analysis."""
+"""Base agent for job market analysis."""
 import json
 import logging
+from typing import Dict, List, Any, Optional
 from pathlib import Path
-from typing import Any, Dict, Optional, List
 
-from langchain.chat_models import ChatOpenAI
-from langchain.schema import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
+from langchain.schema import SystemMessage, HumanMessage
 
 logger = logging.getLogger(__name__)
 

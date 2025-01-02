@@ -1,11 +1,12 @@
 """Main entry point for job market analysis workflow."""
 import os
+import sys
 import json
-import asyncio
 import logging
+import asyncio
 import argparse
-from pathlib import Path
 from typing import Dict, List, Optional, TypedDict
+from pathlib import Path
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -57,20 +58,21 @@ class JobMarketWorkflow:
         self.final_reporter = FinalReporterAgent(self.openai_key)
         
         self.force_new_collection = force_new_collection
+        self.data_dir = Path("data")
         logger.info("Workflow initialized")
     
     async def collect_data(self) -> List[Dict]:
         """Collect job data."""
         logger.info("Collecting job data")
         try:
-            if not self.force_new_collection and os.path.exists("data/job_data.json"):
+            if not self.force_new_collection and (self.data_dir / "job_data.json").exists():
                 logger.info("Loading existing job data")
-                with open("data/job_data.json", 'r') as f:
+                with open(self.data_dir / "job_data.json", 'r') as f:
                     return json.load(f)
             
             job_data = await self.collector.collect_jobs()
-            os.makedirs("data", exist_ok=True)
-            with open("data/job_data.json", 'w') as f:
+            self.data_dir.mkdir(exist_ok=True)
+            with open(self.data_dir / "job_data.json", 'w') as f:
                 json.dump(job_data, f, indent=2)
             return job_data
         except Exception as e:
@@ -81,13 +83,13 @@ class JobMarketWorkflow:
         """Analyze tech requirements."""
         logger.info("Analyzing tech requirements")
         try:
-            if not self.force_new_collection and os.path.exists("data/tech_analysis.json"):
+            if not self.force_new_collection and (self.data_dir / "tech_analysis.json").exists():
                 logger.info("Loading existing tech analysis")
-                with open("data/tech_analysis.json", 'r') as f:
+                with open(self.data_dir / "tech_analysis.json", 'r') as f:
                     return json.load(f)
             
             tech_analysis = await self.analyzer.analyze_tech_requirements(job_data)
-            with open("data/tech_analysis.json", 'w') as f:
+            with open(self.data_dir / "tech_analysis.json", 'w') as f:
                 json.dump(tech_analysis, f, indent=2)
             return tech_analysis
         except Exception as e:
@@ -98,13 +100,13 @@ class JobMarketWorkflow:
         """Generate market report."""
         logger.info("Generating market report")
         try:
-            if not self.force_new_collection and os.path.exists("data/market_report.json"):
+            if not self.force_new_collection and (self.data_dir / "market_report.json").exists():
                 logger.info("Loading existing market report")
-                with open("data/market_report.json", 'r') as f:
+                with open(self.data_dir / "market_report.json", 'r') as f:
                     return json.load(f)
             
             market_report = await self.reporter.generate_report(job_data, tech_analysis)
-            with open("data/market_report.json", 'w') as f:
+            with open(self.data_dir / "market_report.json", 'w') as f:
                 json.dump(market_report, f, indent=2)
             return market_report
         except Exception as e:
@@ -115,89 +117,108 @@ class JobMarketWorkflow:
         """Analyze AI impact."""
         logger.info("Analyzing AI impact")
         try:
-            if not self.force_new_collection and os.path.exists("data/ai_impact_analysis.json"):
+            if not self.force_new_collection and (self.data_dir / "ai_impact_analysis.json").exists():
                 logger.info("Loading existing AI impact analysis")
-                with open("data/ai_impact_analysis.json", 'r') as f:
+                with open(self.data_dir / "ai_impact_analysis.json", 'r') as f:
                     return json.load(f)
             
             ai_impact = await self.impact_analyzer.analyze_ai_impact(job_data, tech_analysis, market_report)
-            with open("data/ai_impact_analysis.json", 'w') as f:
+            with open(self.data_dir / "ai_impact_analysis.json", 'w') as f:
                 json.dump(ai_impact, f, indent=2)
             return ai_impact
         except Exception as e:
             logger.error(f"Error analyzing AI impact: {str(e)}")
             raise
     
-    async def generate_final_report(self, job_data: List[Dict], tech_analysis: Dict, market_report: Dict, ai_impact: Dict) -> Dict:
-        """Generate final report."""
-        logger.info("Generating final report")
+    async def generate_final_report(
+        self,
+        tech_analysis: Dict,
+        market_analysis: Dict,
+        ai_impact_analysis: Dict,
+        timestamp: str
+    ) -> Dict:
+        """Generate final report from all analyses."""
         try:
-            os.makedirs("reports", exist_ok=True)
+            logger.info("Generating final report")
             final_report = self.final_reporter.generate_comprehensive_report(
-                job_data, tech_analysis, market_report, ai_impact
+                tech_analysis,
+                market_analysis,
+                ai_impact_analysis,
+                timestamp
             )
             
-            # Save workflow state
-            with open("data/workflow_state.json", "w") as f:
-                json.dump({
-                    "job_data": job_data,
-                    "tech_analysis": tech_analysis,
-                    "market_report": market_report,
-                    "ai_impact": ai_impact,
-                    "final_report": final_report,
-                    "timestamp": datetime.now().isoformat()
-                }, f, indent=2)
+            # Save report to file
+            report_path = self.data_dir / "final_report.md"
+            with open(report_path, "w") as f:
+                f.write(final_report)
             
-            return final_report
+            # Return report data
+            return {
+                "report": final_report,
+                "statistics": {
+                    "timestamp": timestamp,
+                    "status": "completed"
+                }
+            }
+            
         except Exception as e:
             logger.error(f"Error generating final report: {str(e)}")
             raise
-    
+            
     async def run(self) -> Dict:
         """Run the complete workflow."""
         try:
-            # Ensure data directory exists
-            os.makedirs("data", exist_ok=True)
+            logger.info("Starting workflow")
             
-            # Run workflow steps
-            job_data = await self.collect_data()
+            # Load job data
+            with open(self.data_dir / "job_data.json", "r") as f:
+                job_data = json.load(f)
+            
+            # Run analysis pipeline
             tech_analysis = await self.analyze_tech(job_data)
             market_report = await self.generate_market_report(job_data, tech_analysis)
             ai_impact = await self.analyze_ai_impact(job_data, tech_analysis, market_report)
-            final_report = await self.generate_final_report(job_data, tech_analysis, market_report, ai_impact)
+            
+            # Generate final report
+            final_report = await self.generate_final_report(
+                tech_analysis,
+                market_report,
+                ai_impact,
+                datetime.now().isoformat()
+            )
             
             logger.info("Workflow completed successfully!")
             return final_report
+            
         except Exception as e:
             logger.error(f"Error in workflow: {str(e)}")
             raise
-
-async def main():
-    """Main workflow for job market analysis."""
+            
+async def main() -> Dict:
+    """Main entry point."""
     try:
-        # Parse command line arguments
-        parser = argparse.ArgumentParser(description="Run job market analysis workflow")
-        parser.add_argument("--force-new", action="store_true", help="Force new data collection")
-        parser.add_argument("--report-only", action="store_true", help="Only generate final report using existing data")
-        args = parser.parse_args()
+        # Initialize workflow
+        workflow = JobMarketWorkflow()
+        logger.info("Workflow initialized")
         
-        workflow = JobMarketWorkflow(force_new_collection=args.force_new)
-        
-        if args.report_only:
+        # Check if we should only generate report
+        if len(sys.argv) > 1 and sys.argv[1] == "--report-only":
             logger.info("Generating report from existing data")
-            # Load existing data
-            with open("data/job_data.json", 'r') as f:
-                job_data = json.load(f)
-            with open("data/tech_analysis.json", 'r') as f:
+            
+            # Load existing analysis results
+            with open(workflow.data_dir / "tech_analysis.json", "r") as f:
                 tech_analysis = json.load(f)
-            with open("data/market_report.json", 'r') as f:
+            with open(workflow.data_dir / "market_report.json", "r") as f:
                 market_report = json.load(f)
-            with open("data/ai_impact_analysis.json", 'r') as f:
+            with open(workflow.data_dir / "ai_impact_analysis.json", "r") as f:
                 ai_impact = json.load(f)
             
             # Generate final report only
             final_report = await workflow.generate_final_report(
-                job_data, tech_analysis, market_report, ai_impact
+                tech_analysis,
+                market_report,
+                ai_impact,
+                datetime.now().isoformat()
             )
         else:
             # Run complete workflow
@@ -206,9 +227,8 @@ async def main():
         # Print summary
         stats = final_report.get("statistics", {})
         print("\nKey Statistics:")
-        print(f"- Total Jobs: {stats.get('total_jobs', 0)}")
-        print(f"- AI Roles: {stats.get('ai_specific_roles', 0)}")
-        print(f"- Remote Work: {stats.get('remote_percentage', 0)}%")
+        print(f"- Timestamp: {stats.get('timestamp', '')}")
+        print(f"- Status: {stats.get('status', '')}")
         
         return final_report
         

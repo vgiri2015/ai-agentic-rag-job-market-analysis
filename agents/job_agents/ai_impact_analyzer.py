@@ -1,127 +1,88 @@
-"""AI impact analysis agent."""
-import json
+"""AI impact analysis agent for job market analysis."""
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
+from pathlib import Path
+
 from .base_agent import BaseJobAgent
+from .rag_store import JobMarketRAGStore
 
 logger = logging.getLogger(__name__)
 
 class AIImpactAnalyzerAgent(BaseJobAgent):
-    """Agent for analyzing AI's impact on job roles."""
+    """Agent for analyzing AI's impact on job market."""
     
-    @property
-    def system_prompt(self) -> str:
-        """Get the system prompt for AI impact analysis."""
-        return """You are an AI impact analysis expert. Your task is to analyze how AI is impacting job roles and the job market.
-
-        Format your response as a valid JSON object with the following structure:
-        {
-            "ai_role_analysis": [],  // List of findings about AI's role
-            "required_ai_skills": [],  // List of required AI skills
-            "impact_on_traditional_roles": [],  // List of impacts
-            "future_adaptations": []  // List of needed adaptations
-        }
-        """
-
-    def analyze_ai_impact(
-        self,
-        job_data: List[Dict],
-        tech_analysis: Dict,
-        market_report: Dict
-    ) -> Dict:
-        """Analyze the impact of AI on job roles."""
-        logger.info("Analyzing AI impact on job roles")
+    def __init__(self, openai_key: str):
+        """Initialize the AI impact analyzer agent."""
+        super().__init__(openai_key)
+        self.rag_store = JobMarketRAGStore(openai_key)
         
-        # Process job data in batches
-        batch_size = 10  # Reduced batch size
-        num_batches = (len(job_data) + batch_size - 1) // batch_size
-        all_impacts = []
+    def analyze_ai_impact(self, job_data: List[Dict], tech_analysis: Dict) -> Dict:
+        """Analyze AI's impact on job market using RAG."""
+        # Add jobs to RAG store if not already added
+        self.rag_store.add_jobs(job_data)
         
-        for i in range(num_batches):
-            logger.info(f"Processing batch {i + 1} of {num_batches}")
-            start_idx = i * batch_size
-            end_idx = min((i + 1) * batch_size, len(job_data))
-            batch_jobs = job_data[start_idx:end_idx]
-            
-            # Simplify job data to essential fields
-            simplified_jobs = []
-            for job in batch_jobs:
-                simplified_job = {
-                    "title": job.get("title", ""),
-                    "company_name": job.get("company_name", ""),
-                    "location": job.get("location", ""),
-                    "description": job.get("description", "")[:300]  # Truncate description
-                }
-                simplified_jobs.append(simplified_job)
-            
-            # Create a summary of tech analysis and market report
-            tech_summary = {
-                "top_technologies": tech_analysis.get("top_technologies", [])[:5],  # Reduced to top 5
-                "emerging_trends": tech_analysis.get("emerging_trends", [])[:3]  # Reduced to top 3
-            }
-            
-            market_summary = {
-                "key_trends": market_report.get("key_trends", [])[:3],  # Reduced to top 3
-                "market_insights": market_report.get("market_insights", [])[:3]  # Reduced to top 3
-            }
-            
-            prompt = f"""Please analyze the impact of AI on these job roles based on the provided data.
-
-Job Data (Batch {i + 1} of {num_batches}):
-{json.dumps(simplified_jobs, indent=2)}
-
-Technology Analysis Summary:
-{json.dumps(tech_summary, indent=2)}
-
-Market Report Summary:
-{json.dumps(market_summary, indent=2)}
-
-Please provide an analysis focusing on:
-1. AI's role in these positions
-2. Required AI skills and knowledge
-3. Impact on traditional responsibilities
-4. Future trends and adaptations needed
-
-Format the response as a JSON object with these keys:
-{{
-    "ai_role_analysis": [],  // List of findings about AI's role
-    "required_ai_skills": [],  // List of required AI skills
-    "impact_on_traditional_roles": [],  // List of impacts
-    "future_adaptations": []  // List of needed adaptations
-}}"""
-            
-            messages = [
-                {"role": "system", "content": self.system_prompt},
-                {"role": "user", "content": prompt}
-            ]
-            
-            try:
-                response = self.get_completion(messages)
-                impact_analysis = json.loads(response)
-                all_impacts.append(impact_analysis)
-            except Exception as e:
-                logger.error(f"Error analyzing AI impact: {str(e)}")
-                raise
-        
-        # Combine all impacts
-        combined_impact = {
-            "ai_role_analysis": [],
-            "required_ai_skills": [],
-            "impact_on_traditional_roles": [],
-            "future_adaptations": []
+        # Analyze different aspects of AI impact
+        impact_analysis = {
+            "ai_skill_requirements": self._analyze_ai_skills(),
+            "ai_job_evolution": self._analyze_job_evolution(),
+            "ai_tool_adoption": self._analyze_ai_tools(tech_analysis),
+            "ai_industry_impact": self._analyze_industry_impact(),
+            "future_trends": self._analyze_future_trends()
         }
         
-        for impact in all_impacts:
-            combined_impact["ai_role_analysis"].extend(impact.get("ai_role_analysis", []))
-            combined_impact["required_ai_skills"].extend(impact.get("required_ai_skills", []))
-            combined_impact["impact_on_traditional_roles"].extend(impact.get("impact_on_traditional_roles", []))
-            combined_impact["future_adaptations"].extend(impact.get("future_adaptations", []))
+        # Save analysis
+        self.save_json(impact_analysis, "ai_impact_analysis.json")
+        return impact_analysis
         
-        # Remove duplicates while preserving order
-        for key in combined_impact:
-            combined_impact[key] = list(dict.fromkeys(combined_impact[key]))
+    def _analyze_ai_skills(self) -> Dict:
+        """Analyze AI-specific skill requirements using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze AI-specific skill requirements in job postings:
+        1. Required AI/ML frameworks and tools
+        2. Experience levels for AI roles
+        3. Specialized AI skills (NLP, CV, etc.)
+        4. Non-technical skills for AI roles
+        """)
         
-        # Save the analysis
-        self.save_json(combined_impact, "ai_impact_analysis.json")
+    def _analyze_job_evolution(self) -> Dict:
+        """Analyze how jobs are evolving with AI using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze how jobs are evolving with AI integration:
+        1. Traditional roles incorporating AI
+        2. New AI-specific job titles
+        3. Changes in job responsibilities
+        4. AI automation impact
+        """)
         
-        return combined_impact
+    def _analyze_ai_tools(self, tech_analysis: Dict) -> Dict:
+        """Analyze AI tool adoption trends."""
+        return self.rag_store.analyze_trends(f"""
+        Analyze AI tool adoption considering this tech analysis:
+        {tech_analysis}
+        
+        Focus on:
+        1. Popular AI/ML frameworks
+        2. Cloud AI services
+        3. AI development tools
+        4. Industry-specific AI solutions
+        """)
+        
+    def _analyze_industry_impact(self) -> Dict:
+        """Analyze AI's impact across industries using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze AI's impact across different industries:
+        1. Industry-specific AI adoption
+        2. Transformation of workflows
+        3. AI-driven innovation
+        4. Industry challenges and opportunities
+        """)
+        
+    def _analyze_future_trends(self) -> Dict:
+        """Analyze future AI trends in job market using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze future AI trends in the job market:
+        1. Emerging AI technologies
+        2. Future skill requirements
+        3. Potential job market changes
+        4. AI adoption challenges
+        """)

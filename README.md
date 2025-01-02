@@ -537,7 +537,7 @@ python -m agents.main --force-new
 - `data/job_data.json`: Raw job listing data
 - `data/tech_analysis.json`: Technical requirements analysis
 - `data/market_report.json`: Market trend analysis
-- `data/ai_impact_analysis.json`: AI impact analysis
+- `data/ai_impact.json`: AI impact analysis
 - `data/workflow_state.json`: Complete workflow state with timestamp
 - `reports/final_report.md`: Final report in markdown format
 - `reports/final_report.json`: Final report in JSON format
@@ -734,7 +734,286 @@ The workflow is executed through the main entry point:
 
 ```bash
 # Run with existing data
-python agents/main.py
+python -m agents.main
 
 # Force new data collection
-python agents/main.py --force-new
+python -m agents.main --force-new
+
+```
+
+## System Architecture
+
+### Component Diagram
+
+```mermaid
+graph TD
+    A[Job Data Collector] --> B[Technical Analyzer]
+    B --> C[Market Reporter]
+    C --> D[AI Impact Analyzer]
+    D --> E[Final Reporter]
+    
+    subgraph Vector Store
+        F[FAISS Index]
+        G[Embeddings]
+    end
+    
+    subgraph RAG System
+        H[Document Chunker]
+        I[Query Router]
+        J[Context Manager]
+    end
+    
+    A --> F
+    B --> F
+    C --> F
+    D --> F
+    E --> F
+    
+    F <--> G
+    F <--> H
+    H <--> I
+    I <--> J
+```
+
+### Workflow Diagram
+
+```mermaid
+sequenceDiagram
+    participant C as Collector
+    participant VS as Vector Store
+    participant A as Analyzer
+    participant R as Reporter
+    participant F as Final Reporter
+    
+    C->>VS: Store Job Data
+    VS->>A: Retrieve Context
+    A->>VS: Store Analysis
+    VS->>R: Retrieve Analysis
+    R->>VS: Store Report
+    VS->>F: Retrieve All Data
+    F->>F: Generate Final Report
+```
+
+### Data Flow
+
+```ascii
++----------------+     +----------------+     +----------------+
+|                |     |                |     |                |
+| Job Collection |---->| Vector Storage |---->| Data Analysis  |
+|                |     |                |     |                |
++----------------+     +----------------+     +----------------+
+                                |
+                                v
++----------------+     +----------------+
+|                |     |                |
+| Report Gen     |<----| Market Analysis|
+|                |     |                |
++----------------+     +----------------+
+```
+
+### RAG Architecture
+
+```ascii
+                    +-------------------+
+                    |                   |
+                    | Query Processing  |
+                    |                   |
+                    +-------------------+
+                            |
+                            v
++-----------------+  +-------------+  +-----------------+
+|                 |  |             |  |                 |
+| Document Store  |->| Vector DB   |->| Context Window  |
+|                 |  |             |  |                 |
++-----------------+  +-------------+  +-----------------+
+                            |
+                            v
+                    +-------------------+
+                    |                   |
+                    | Response Gen      |
+                    |                   |
+                    +-------------------+
+```
+
+## AI-Agentic Job Market Research System
+
+A sophisticated job market analysis system that leverages RAG (Retrieval Augmented Generation), LlamaIndex, and LangGraph to provide comprehensive insights into tech job market trends, skills analysis, and AI impact assessment.
+
+## Overview
+
+This system performs detailed analysis of job market data using a multi-agent workflow powered by LangGraph. It utilizes RAG with LlamaIndex and FAISS for efficient information retrieval and generation of insights. The system processes job listings, analyzes technical requirements, generates market reports, and assesses AI impact on the job market.
+
+## Architecture
+
+### Core Components
+
+1. **Vector Store & Embeddings**
+   - FAISS vector store for efficient similarity search
+   - OpenAI embeddings for document vectorization
+   - LlamaIndex for document chunking and indexing
+
+2. **RAG Implementation**
+   - Hybrid search combining semantic and keyword matching
+   - Document chunking with overlap for context preservation
+   - Query routing and rewriting for improved retrieval
+
+3. **Agent Workflow**
+   - Job Data Collector: Gathers and processes job listings
+   - Technical Analyzer: Analyzes technical requirements and skills
+   - Market Reporter: Generates market insights and trends
+   - AI Impact Analyzer: Assesses AI's influence on jobs
+   - Final Reporter: Synthesizes findings into comprehensive reports
+
+### Key Features
+
+- **Intelligent Data Processing**
+  - Automatic chunking of large documents
+  - Smart token management for LLM context windows
+  - Hybrid search combining dense and sparse retrieval
+
+- **Advanced Analysis**
+  - Technical skills trend analysis
+  - Market dynamics assessment
+  - AI impact evaluation
+  - Comprehensive report generation
+
+- **Modular Design**
+  - Independent agent components
+  - Flexible workflow configuration
+  - Extensible architecture
+
+## Technical Stack
+
+- **Core Framework**
+  - Python 3.12+
+  - LangGraph for agent orchestration
+  - LlamaIndex 0.9+ for RAG implementation
+  - FAISS for vector storage
+
+- **Language Models & Embeddings**
+  - OpenAI GPT-4 for analysis and report generation
+  - GPT-3.5-Turbo for initial data summarization
+  - OpenAI Ada embeddings for document vectorization
+
+- **Storage & Retrieval**
+  - FAISS vector store
+  - JSON for structured data storage
+  - Markdown for report output
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/ai-agentic-rag-job-research.git
+cd ai-agentic-rag-job-research
+```
+
+2. Create a virtual environment:
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Set up environment variables:
+```bash
+export OPENAI_API_KEY=your_api_key
+```
+
+## Usage
+
+### Basic Usage
+
+1. Run the complete workflow:
+```bash
+python -m agents.main
+```
+
+2. Generate report from existing data:
+```bash
+python -m agents.main --report-only
+```
+
+### Configuration
+
+- Configure agent parameters in `config.json`
+- Adjust vector store settings in `rag_store.py`
+- Modify report templates in `final_reporter.py`
+
+## Project Structure
+
+```
+ai-agentic-rag-job-research/
+├── agents/
+│   ├── job_agents/
+│   │   ├── base_agent.py
+│   │   ├── collector.py
+│   │   ├── analyzer.py
+│   │   ├── reporter.py
+│   │   ├── impact_analyzer.py
+│   │   ├── final_reporter.py
+│   │   └── rag_store.py
+│   └── main.py
+├── data/
+│   ├── job_data.json
+│   ├── tech_analysis.json
+│   ├── market_report.json
+│   ├── ai_impact.json
+│   └── final_report.md
+├── requirements.txt
+└── README.md
+```
+
+## Key Features
+
+1. **Data Collection & Processing**
+   - Automated job data collection
+   - Intelligent data chunking and processing
+   - Efficient vector storage with FAISS
+
+2. **Analysis Pipeline**
+   - Technical skills analysis
+   - Market trends identification
+   - AI impact assessment
+   - Comprehensive report generation
+
+3. **Report Generation**
+   - Executive summaries
+   - Detailed technical analysis
+   - Market dynamics insights
+   - Strategic recommendations
+
+## Dependencies
+
+- `langchain>=0.1.0`
+- `llama-index>=0.9.0`
+- `langgraph>=0.0.10`
+- `faiss-cpu>=1.7.4`
+- `openai>=1.3.0`
+- `numpy>=1.24.0`
+- `pandas>=2.1.0`
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- OpenAI for GPT models and embeddings
+- LlamaIndex team for the RAG framework
+- LangGraph team for the agent orchestration framework
+- FAISS team for the vector store implementation
+
+```

@@ -1,134 +1,123 @@
-"""Market report generation agent."""
-import json
+"""Market analysis reporter for job market analysis."""
 import logging
-from typing import Dict, List
+import statistics
+from typing import Dict, List, Optional
+from pathlib import Path
+from datetime import datetime
+
 from .base_agent import BaseJobAgent
+from .rag_store import JobMarketRAGStore
 
 logger = logging.getLogger(__name__)
 
 class MarketReporterAgent(BaseJobAgent):
     """Agent for generating market analysis reports."""
     
+    def __init__(self, openai_key: str):
+        """Initialize the market reporter agent."""
+        super().__init__(openai_key)
+        self.rag_store = JobMarketRAGStore(openai_key)
+        
     def generate_report(self, job_data: List[Dict], tech_analysis: Dict) -> Dict:
-        """Generate market analysis report."""
-        logger.info("Generating market analysis report")
-        try:
-            # Process jobs in batches of 20 to avoid context length limits
-            batch_size = 20
-            all_analyses = []
-            
-            for i in range(0, len(job_data), batch_size):
-                batch = job_data[i:i + batch_size]
-                logger.info(f"Processing batch {i//batch_size + 1} of {(len(job_data) + batch_size - 1)//batch_size}")
-                
-                # Prepare simplified job data
-                simplified_batch = []
-                for job in batch:
-                    desc = job.get("description", "")
-                    # Take first 500 characters of description
-                    truncated_desc = desc[:500] + "..." if len(desc) > 500 else desc
-                    
-                    simplified_job = {
-                        "title": job.get("title", "Unknown Title"),
-                        "company": job.get("company_name", "Unknown Company"),
-                        "location": job.get("location", "Unknown Location"),
-                        "description": truncated_desc
-                    }
-                    simplified_batch.append(simplified_job)
-                
-                messages = [
-                    {"role": "system", "content": """You are a job market analyst. Your task is to analyze job postings and identify:
-                    1. Salary trends and compensation patterns
-                    2. Required experience levels and qualifications
-                    3. Industry sectors and company types
-                    4. Remote work and location preferences
-                    5. Benefits and perks
-                    
-                    Format your response as a JSON object with these keys:
-                    {
-                        "salary_insights": {"range": count, ...},
-                        "experience_requirements": {"level": count, ...},
-                        "industry_sectors": {"sector": count, ...},
-                        "work_arrangements": {"type": count, ...},
-                        "benefits_perks": {"benefit": count, ...}
-                    }
-                    
-                    IMPORTANT: All count values must be integers."""},
-                    {"role": "user", "content": f"Analyze these job postings and provide market insights: {json.dumps(simplified_batch)}"}
-                ]
-
-                completion = self.llm.invoke(messages)
-                try:
-                    analysis = json.loads(completion.content)
-                    all_analyses.append(analysis)
-                except json.JSONDecodeError as e:
-                    logger.error(f"Error parsing JSON from completion: {str(e)}")
-                    logger.error(f"Raw completion: {completion.content}")
-                    continue
-            
-            # Combine all analyses
-            combined_analysis = {
-                "salary_insights": {},
-                "experience_requirements": {},
-                "industry_sectors": {},
-                "work_arrangements": {},
-                "benefits_perks": {}
-            }
-            
-            def ensure_int(val):
-                """Convert value to int if possible, otherwise return 0"""
-                try:
-                    return int(val)
-                except (ValueError, TypeError):
-                    return 0
-            
-            for analysis in all_analyses:
-                # Combine salary insights
-                for salary, count in analysis.get("salary_insights", {}).items():
-                    combined_analysis["salary_insights"][salary] = \
-                        combined_analysis["salary_insights"].get(salary, 0) + ensure_int(count)
-                
-                # Combine experience requirements
-                for exp, count in analysis.get("experience_requirements", {}).items():
-                    combined_analysis["experience_requirements"][exp] = \
-                        combined_analysis["experience_requirements"].get(exp, 0) + ensure_int(count)
-                
-                # Combine industry sectors
-                for sector, count in analysis.get("industry_sectors", {}).items():
-                    combined_analysis["industry_sectors"][sector] = \
-                        combined_analysis["industry_sectors"].get(sector, 0) + ensure_int(count)
-                
-                # Combine work arrangements
-                for arr, count in analysis.get("work_arrangements", {}).items():
-                    combined_analysis["work_arrangements"][arr] = \
-                        combined_analysis["work_arrangements"].get(arr, 0) + ensure_int(count)
-                
-                # Combine benefits and perks
-                for benefit, count in analysis.get("benefits_perks", {}).items():
-                    combined_analysis["benefits_perks"][benefit] = \
-                        combined_analysis["benefits_perks"].get(benefit, 0) + ensure_int(count)
-            
-            # Sort all dictionaries by value in descending order
-            for key in combined_analysis:
-                combined_analysis[key] = dict(sorted(
-                    combined_analysis[key].items(),
-                    key=lambda x: x[1],
-                    reverse=True
-                ))
-            
-            # Add tech analysis summary
-            combined_analysis["tech_requirements"] = {
-                "top_skills": dict(list(tech_analysis.get("technical_skills", {}).items())[:10]),
-                "top_stacks": dict(list(tech_analysis.get("tech_stacks", {}).items())[:10]),
-                "emerging_trends": tech_analysis.get("emerging_trends", [])[:5],
-                "top_education": dict(list(tech_analysis.get("education_requirements", {}).items())[:5])
-            }
-            
-            # Save the analysis
-            self.save_json(combined_analysis, "market_report.json")
-            
-            return combined_analysis
-
-        except Exception as e:
-            logger.error(f"Error generating market report: {str(e)}")
-            raise
+        """Generate market report using RAG-enhanced analysis."""
+        # Add jobs to RAG store if not already added
+        self.rag_store.add_jobs(job_data)
+        
+        # Analyze different market aspects
+        market_insights = {
+            "salary_trends": self._analyze_salary_trends(job_data),
+            "location_analysis": self._analyze_locations(),
+            "company_insights": self._analyze_companies(),
+            "remote_work_trends": self._analyze_remote_work(),
+            "market_demands": self._analyze_market_demands(tech_analysis),
+            "industry_trends": self._analyze_industry_trends()
+        }
+        
+        # Save the report
+        self.save_json(market_insights, "market_report.json")
+        return market_insights
+        
+    def _analyze_salary_trends(self, job_data: List[Dict]) -> Dict:
+        """Analyze salary trends using both statistical and RAG analysis."""
+        # Extract and clean salary data
+        salaries = []
+        for job in job_data:
+            salary = job.get('salary')
+            if salary and isinstance(salary, (int, float)):
+                salaries.append(salary)
+        
+        # Calculate basic statistics
+        stats = {
+            "average": statistics.mean(salaries) if salaries else 0,
+            "median": statistics.median(salaries) if salaries else 0,
+            "min": min(salaries) if salaries else 0,
+            "max": max(salaries) if salaries else 0
+        }
+        
+        # Get RAG insights about salary trends
+        salary_insights = self.rag_store.analyze_trends("""
+        Analyze salary trends in the job market. Consider:
+        1. Salary ranges for different experience levels
+        2. Industry-specific salary variations
+        3. Location-based salary differences
+        4. Correlation between skills and compensation
+        """)
+        
+        return {
+            "statistics": stats,
+            "insights": salary_insights
+        }
+        
+    def _analyze_locations(self) -> Dict:
+        """Analyze location-based trends using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze location-based trends in the job market:
+        1. Top hiring locations
+        2. Regional salary differences
+        3. Location-specific skill requirements
+        4. Remote work policies by region
+        """)
+        
+    def _analyze_companies(self) -> Dict:
+        """Analyze company-specific trends using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze company-related trends:
+        1. Top hiring companies
+        2. Company size distribution
+        3. Industry sector distribution
+        4. Company benefits and perks
+        """)
+        
+    def _analyze_remote_work(self) -> Dict:
+        """Analyze remote work trends using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze remote work trends:
+        1. Percentage of remote positions
+        2. Hybrid vs fully remote options
+        3. Remote work requirements
+        4. Geographic restrictions for remote work
+        """)
+        
+    def _analyze_market_demands(self, tech_analysis: Dict) -> Dict:
+        """Analyze market demands combining tech analysis with RAG insights."""
+        # Combine tech analysis with job postings for enhanced insights
+        return self.rag_store.analyze_trends(f"""
+        Analyze market demands considering the following tech analysis:
+        {tech_analysis}
+        
+        Focus on:
+        1. High-demand skills and technologies
+        2. Emerging role types
+        3. Experience level requirements
+        4. Industry-specific demands
+        """)
+        
+    def _analyze_industry_trends(self) -> Dict:
+        """Analyze broader industry trends using RAG."""
+        return self.rag_store.analyze_trends("""
+        Analyze broader industry trends:
+        1. Growing industries and sectors
+        2. Declining or transforming roles
+        3. New job titles and roles
+        4. Industry-specific technology adoption
+        """)
