@@ -123,122 +123,52 @@ class FinalReporterAgent(BaseJobAgent):
         
     def _extract_key_points(self, data: Dict) -> str:
         """Extract key points from analysis data."""
-        TECH_SUMMARY_PROMPT = """Analyze the technical requirements and skills from the data and create a comprehensive summary with specific statistics and rankings:
-
-1. Job Market Overview:
-   - Total number of AI job postings analyzed
-   - Year-over-year growth in AI jobs
-   - Distribution by job type
-   - Remote vs on-site ratio
-   - Average salary ranges by role
-
-2. Top 10 AI Jobs by Demand:
-   - Machine Learning Engineer
-   - AI Research Scientist
-   - Data Scientist
-   - AI Product Manager
-   - MLOps Engineer
-   - AI Solutions Architect
-   - NLP Engineer
-   - Computer Vision Engineer
-   - AI Ethics Officer
-   - AI Infrastructure Engineer
-   Include salary ranges and YoY growth for each.
-
-3. Top AI Skills by Demand (with usage %):
-   - Programming Languages (Python, Julia, etc.)
-   - ML Frameworks (PyTorch, TensorFlow, etc.)
-   - Cloud Platforms (AWS, Azure, GCP)
-   - MLOps Tools
-   - Database Technologies
-
-4. LLM Models and Frameworks:
-   - Most used LLM models
-   - Popular fine-tuning approaches
-   - Deployment platforms
-   - Cost considerations
-   - Performance metrics
-
-5. RAG Technology Stack:
-   - Vector Databases (usage %)
-   - Embedding Models
-   - Document Processing Tools
-   - Search Optimization Tools
-   - Integration Frameworks
-
-6. Top AI Development Tools:
-   - LangChain usage statistics
-   - LlamaIndex adoption rates
-   - Vector store platforms
-   - Model serving tools
-   - Development frameworks
-
-7. Agentic AI Components:
-   - Agent frameworks
-   - Planning systems
-   - Tool integration platforms
-   - Orchestration solutions
-   - State management tools
-
-Include specific numbers, percentages, and growth rates wherever possible.
-"""
-
         chunks = self._chunk_data(data)
         summaries = []
         
+        # Process each chunk with focused prompts
         for chunk in chunks:
-            prompt = f"""
-            {TECH_SUMMARY_PROMPT}
+            chunk_str = str(chunk)
             
-            {chunk}
-            
+            # Code assist analysis
+            code_assist_prompt = """Analyze the adoption and impact of AI code assistance tools.
             Focus on:
-            1. Main findings (max 2)
-            2. Statistical highlights (max 2)
-            3. Critical trends (max 2)
+            1. Development tools evolution and adoption rates
+            2. Developer productivity metrics
+            3. Popular tools and market share
+            4. ROI and efficiency gains
             
-            Format as a very brief bullet-point list. Total response should be under 150 words.
-            """
+            Data to analyze:
+            """ + chunk_str
             
-            messages = [
-                SystemMessage(content="You are a data analyst expert at extracting key insights."),
-                HumanMessage(content=prompt)
-            ]
+            code_assist_analysis = self.get_completion(code_assist_prompt)
+            summaries.append(code_assist_analysis)
             
-            try:
-                response = self.summarizer.invoke(messages)
-                summaries.append(response.content)
-            except Exception as e:
-                logger.error(f"Error processing chunk: {str(e)}")
-                continue
+            # Business domain analysis
+            business_domain_prompt = """Analyze AI technology adoption across business domains.
+            Focus on:
+            1. Industry-specific adoption rates
+            2. Implementation areas and success rates
+            3. ROI and impact metrics
+            4. Key trends and challenges
+            
+            Data to analyze:
+            """ + chunk_str
+            
+            business_domain_analysis = self.get_completion(business_domain_prompt)
+            summaries.append(business_domain_analysis)
         
-        # Combine summaries
-        combined_summary = "\n\n".join(summaries)
+        # Combine summaries with shorter context
+        combined_prompt = """Synthesize these findings into a cohesive analysis:
         
-        # Create final summary of summaries if needed
-        if len(summaries) > 1:
-            prompt = f"""
-            Combine these summaries into a single coherent list of key points:
-            
-            {combined_summary}
-            
-            Focus on eliminating redundancy and keeping only the most important points.
-            Format as a very brief bullet-point list. Total response should be under 200 words.
-            """
-            
-            messages = [
-                SystemMessage(content="You are a data analyst expert at synthesizing insights."),
-                HumanMessage(content=prompt)
-            ]
-            
-            try:
-                response = self.summarizer.invoke(messages)
-                return response.content
-            except Exception as e:
-                logger.error(f"Error combining summaries: {str(e)}")
-                return combined_summary
-                
-        return combined_summary
+        Code Assistant Analysis:
+        {}
+        
+        Business Domain Analysis:
+        {}
+        """.format("\n".join(summaries[::2]), "\n".join(summaries[1::2]))
+        
+        return self.get_completion(combined_prompt)
         
     def _analyze_tech_landscape(self, tech_summary: str) -> str:
         """Analyze technical skills landscape."""
