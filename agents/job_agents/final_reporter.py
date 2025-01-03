@@ -24,6 +24,7 @@ import logging
 from typing import Dict, List, Optional
 from pathlib import Path
 import json
+from datetime import datetime
 
 from .base_agent import BaseJobAgent
 from langchain.schema import SystemMessage, HumanMessage
@@ -335,200 +336,241 @@ Include specific numbers and comparisons.
         
         return self.get_completion(messages)
         
-    def _generate_recommendations(
+    def _generate_detailed_sections(
         self,
-        tech_section: str,
-        market_section: str,
-        ai_section: str
+        tech_summary: str,
+        market_summary: str,
+        ai_summary: str
     ) -> str:
-        """Generate strategic recommendations."""
-        RECOMMENDATIONS_PROMPT = """Generate strategic recommendations with specific metrics:
-
-1. Technology Selection:
-   - Cost-benefit analysis
-   - Implementation timeline
-   - Resource requirements
-   - Risk assessment
-   - Success metrics
-
-2. Skill Development:
-   - Learning paths
-   - Time investment
-   - Certification costs
-   - Career impact
-   - Salary potential
-
-3. Implementation Strategy:
-   - Phasing approach
-   - Resource allocation
-   - Timeline planning
-   - Risk mitigation
-   - Success criteria
-
-Include specific timelines and success metrics.
-"""
-
-        prompt = f"""
-        {RECOMMENDATIONS_PROMPT}
+        """Generate detailed sections from summaries."""
+        tech_section = self._analyze_tech_landscape(tech_summary)
+        market_section = self._analyze_market_dynamics(market_summary)
+        ai_section = self._analyze_ai_impact(ai_summary)
         
-        Technical Analysis:
-        {tech_section}
-        
-        Market Analysis:
-        {market_section}
-        
-        AI Impact:
-        {ai_section}
-        
-        Create brief, actionable recommendations (max 2 each) for:
-        1. Job seekers
-        2. Employers
-        3. Educational institutions
-        
-        Format the response in markdown with bullet points.
-        Total response should be under 250 words.
-        """
-        
-        messages = [
-            SystemMessage(content="You are an expert career strategist."),
-            HumanMessage(content=prompt)
-        ]
-        
-        return self.get_completion(messages)
-        
-    def _generate_executive_summary(
-        self,
-        tech_section: str,
-        market_section: str,
-        ai_section: str,
-        recommendations: str
-    ) -> str:
-        """Generate executive summary."""
-        EXECUTIVE_SUMMARY_PROMPT = """Create a data-driven executive summary highlighting:
-
-1. Market Overview:
-   - Total market size
-   - Growth rates
-   - Key players
-   - Major trends
-   - Future projections
-
-2. Technology Impact:
-   - Adoption rates
-   - Success metrics
-   - Cost implications
-   - ROI analysis
-   - Risk factors
-
-3. Strategic Direction:
-   - Priority actions
-   - Timeline
-   - Resource needs
-   - Success criteria
-   - Risk mitigation
-
-Include key statistics and metrics throughout.
-"""
-
-        prompt = f"""
-        {EXECUTIVE_SUMMARY_PROMPT}
-        
-        Technical Skills:
-        {tech_section}
-        
-        Market Dynamics:
-        {market_section}
-        
-        AI Impact:
-        {ai_section}
-        
-        Recommendations:
-        {recommendations}
-        
-        The summary must be under 200 words and highlight only the most 
-        critical findings and implications. Focus on actionable insights.
-        
-        Format the response in markdown.
-        """
-        
-        messages = [
-            SystemMessage(content="You are an expert business analyst."),
-            HumanMessage(content=prompt)
-        ]
-        
-        return self.get_completion(messages)
-        
-    def generate_comprehensive_report(
-        self,
-        tech_analysis: Dict,
-        market_analysis: Dict,
-        ai_impact_analysis: Dict,
-        timestamp: str
-    ) -> str:
-        """Generate a comprehensive report combining all analyses."""
-        logger.info("Generating comprehensive report...")
-        
-        try:
-            # First, extract key points using GPT-3.5-turbo with chunking
-            tech_summary = self._extract_key_points(tech_analysis)
-            logger.info("Generated tech summary")
-            
-            market_summary = self._extract_key_points(market_analysis)
-            logger.info("Generated market summary")
-            
-            ai_summary = self._extract_key_points(ai_impact_analysis)
-            logger.info("Generated AI impact summary")
-            
-            # Generate detailed sections from summaries using GPT-4
-            tech_section = self._analyze_tech_landscape(tech_summary)
-            market_section = self._analyze_market_dynamics(market_summary)
-            ai_section = self._analyze_ai_impact(ai_summary)
-            logger.info("Generated detailed sections")
-            
-            # Generate recommendations based on sections
-            recommendations = self._generate_recommendations(
-                tech_section,
-                market_section,
-                ai_section
-            )
-            logger.info("Generated recommendations")
-            
-            # Generate executive summary
-            executive_summary = self._generate_executive_summary(
-                tech_section,
-                market_section,
-                ai_section,
-                recommendations
-            )
-            logger.info("Generated executive summary")
-            
-            # Combine all sections into final report
-            report = f"""# Job Market Analysis Report
-            
-{executive_summary}
-
-## Technical Skills Landscape
+        return f"""## Technical Skills Landscape
 {tech_section}
 
 ## Market Dynamics
 {market_section}
 
 ## AI Impact Assessment
-{ai_section}
+{ai_section}"""
 
-## Strategic Recommendations
+    def _generate_recommendations(
+        self,
+        tech_summary: str,
+        market_summary: str,
+        ai_summary: str
+    ) -> str:
+        """Generate strategic recommendations."""
+        prompt = f"""Based on these summaries:
+
+Technical: {tech_summary}
+Market: {market_summary}
+AI Impact: {ai_summary}
+
+Generate strategic recommendations for:
+1. Job seekers
+2. Employers
+3. Educational institutions
+
+Include specific, actionable items with timeframes where relevant.
+Format in markdown with clear sections."""
+        
+        return self.get_completion(prompt)
+
+    def _generate_executive_summary(
+        self,
+        tech_summary: str,
+        market_summary: str,
+        ai_summary: str
+    ) -> str:
+        """Generate executive summary."""
+        prompt = f"""Based on these detailed analyses:
+
+Technical: {tech_summary}
+Market: {market_summary}
+AI Impact: {ai_summary}
+
+Generate a concise executive summary that:
+1. Highlights key findings
+2. Emphasizes critical trends
+3. Notes important recommendations
+
+Keep it brief but comprehensive. Format in markdown."""
+        
+        return self.get_completion(prompt)
+
+    def _analyze_tech_landscape(self, summary: str) -> str:
+        """Analyze technical landscape from summary."""
+        prompt = f"""Based on this summary of technical requirements and skills:
+
+{summary}
+
+Generate a detailed analysis of the technical skills landscape, focusing on:
+1. Most in-demand skills
+2. Emerging technologies
+3. Key skill gaps
+
+Format in markdown with clear sections and bullet points."""
+        
+        return self.get_completion(prompt)
+
+    def _analyze_market_dynamics(self, summary: str) -> str:
+        """Analyze market dynamics from summary."""
+        prompt = f"""Based on this market analysis summary:
+
+{summary}
+
+Generate a detailed analysis of market dynamics, focusing on:
+- Key salary trends
+- Geographic insights
+- Industry highlights
+
+Format in markdown with clear sections and bullet points."""
+        
+        return self.get_completion(prompt)
+
+    def _analyze_ai_impact(self, summary: str) -> str:
+        """Analyze AI impact from summary."""
+        prompt = f"""Based on this AI impact analysis summary:
+
+{summary}
+
+Generate a detailed analysis of AI's impact, focusing on:
+- Current AI adoption trends
+- Future projections
+- Critical skill shifts
+
+Format in markdown with clear sections and bullet points."""
+        
+        return self.get_completion(prompt)
+
+    SKILLS_ANALYSIS_PROMPT = """Analyze and list the top hands-on technical skills for each AI job category, and provide career transition advice:
+
+1. AI Software Development
+2. Front End Development
+3. Back End Development
+4. Full Stack Development
+5. AI Product Management
+6. AI Code Assistant skills
+7. DevOps
+8. Cloud Systems
+9. Computer Vision
+10. NLP
+11. UI/UX Design
+12. Data Science
+13. Data Engineering
+14. AI Security
+15. LLM Models
+16. Vector database
+17. Generative AI Image Generation
+18. Chatbots
+19. Agent frameworks
+20. Open Source models
+21. Kids/Teenagers/College Students
+22. Technical Support Professionals
+
+For each category:
+1. Technical Skills:
+   - List the most in-demand technical skills
+   - Focus on specific tools, languages, and frameworks
+   - Include version control and collaboration tools
+   - Add relevant certifications if applicable
+
+2. Career Transition Advice:
+   - Explain how to leverage AI tools in their current role
+   - Suggest integration paths with AI technologies
+   - Recommend learning paths and resources
+   - Highlight opportunities for AI adoption
+
+Format as markdown with category headers, skills bullets, and transition advice section.
+
+Example format:
+## [Category Name]
+
+### Key Technical Skills
+- [Skills list]
+
+### Career Transition to AI
+[Specific advice on how professionals in this field can adopt AI tools and transition to AI-enhanced roles]
+
+Note: For Data Engineers specifically, emphasize:
+- Adopting AI-based code development tools (Copilot, Codeium)
+- Using Agent frameworks to revamp data engineering pipelines
+- Understanding end-to-end AI app development and cloud deployment
+- Transitioning to Agentic RAG frameworks
+"""
+
+    def _analyze_skills(self, data: Dict) -> str:
+        """Analyze skills and provide career transition advice for different AI job categories."""
+        prompt = self.SKILLS_ANALYSIS_PROMPT
+        return self.get_completion(prompt)
+
+    def generate_comprehensive_report(
+        self,
+        tech_analysis: Dict,
+        market_analysis: Dict,
+        ai_impact_analysis: Dict,
+        timestamp: Optional[str] = None
+    ) -> str:
+        """Generate comprehensive report with all analyses."""
+        try:
+            logger.info("Generating comprehensive report...")
+            
+            # Get existing analyses
+            tech_summary = self._extract_key_points(tech_analysis)
+            market_summary = self._extract_key_points(market_analysis)
+            ai_summary = self._extract_key_points(ai_impact_analysis)
+            
+            # Generate detailed sections
+            detailed_sections = self._generate_detailed_sections(
+                tech_summary,
+                market_summary,
+                ai_summary
+            )
+            
+            # Generate recommendations
+            recommendations = self._generate_recommendations(
+                tech_summary,
+                market_summary,
+                ai_summary
+            )
+            
+            # Generate executive summary
+            exec_summary = self._generate_executive_summary(
+                tech_summary,
+                market_summary,
+                ai_summary
+            )
+            
+            # Generate skills analysis and career transition advice
+            skills_analysis = self._analyze_skills(tech_analysis)
+            
+            # Use provided timestamp or generate new one
+            report_timestamp = timestamp or datetime.now().isoformat()
+            
+            # Combine all sections
+            report = f"""# Job Market Analysis Report
+            
+**Executive Summary**
+
+{exec_summary}
+
+{detailed_sections}
+
 {recommendations}
 
-Report generated on: {timestamp}
-"""
+## Technical Skills and Career Transition Guide
+
+{skills_analysis}
+
+Report generated on: {report_timestamp}"""
             
-            # Save report
-            report_path = self.data_dir / "final_report.md"
-            with open(report_path, "w") as f:
-                f.write(report)
-                
+            logger.info("Generated comprehensive report")
             return report
             
         except Exception as e:
-            logger.error(f"Error generating report: {str(e)}")
-            raise
+            error_msg = f"Error generating report: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
