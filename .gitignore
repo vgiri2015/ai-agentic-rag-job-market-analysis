@@ -46,3 +46,6 @@ Thumbs.db
 *.log
 data/raw/
 data/processed/
+
+# Blog folder
+blog/
