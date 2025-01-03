@@ -16,22 +16,6 @@ pie title "Most In-Demand AI Skills (2024)"
     "Python" : 10
 ```
 
-### AI Adoption Timeline
-```mermaid
-gantt
-    title AI Technology Adoption Timeline
-    dateFormat  YYYY-Q[Q]
-    section Cloud AI
-    AWS AI Services    :2023-Q1, 2024-Q4
-    Azure AI Platform  :2023-Q2, 2024-Q4
-    section Healthcare AI
-    Patient Analytics  :2023-Q3, 2024-Q4
-    Medical Diagnosis  :2023-Q4, 2024-Q4
-    section AI Security
-    Threat Detection   :2023-Q2, 2024-Q4
-    Response Automation:2023-Q3, 2024-Q4
-```
-
 ### AI Career Transition Flow
 ```mermaid
 flowchart LR
