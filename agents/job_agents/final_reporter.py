@@ -446,60 +446,36 @@ Format in markdown with clear sections and bullet points."""
         
         return self.get_completion(prompt)
 
-    SKILLS_ANALYSIS_PROMPT = """Analyze and list the top hands-on technical skills for each AI job category, and provide career transition advice:
+    SKILLS_ANALYSIS_PROMPT = """Analyze the top hands-on technical skills and career transition paths for each AI job category.
 
-1. AI Software Development
-2. Front End Development
-3. Back End Development
-4. Full Stack Development
-5. AI Product Management
-6. AI Code Assistant skills
-7. DevOps
-8. Cloud Systems
-9. Computer Vision
-10. NLP
-11. UI/UX Design
-12. Data Science
-13. Data Engineering
-14. AI Security
-15. LLM Models
-16. Vector database
-17. Generative AI Image Generation
-18. Chatbots
-19. Agent frameworks
-20. Open Source models
-21. Kids/Teenagers/College Students
-22. Technical Support Professionals
+Categories: AI Software Development, Front End Development, Back End Development,
+Full Stack Development, AI Product Management, AI Code Assistant skills, DevOps,
+Cloud Systems, Computer Vision, NLP, UI/UX Design, Data Science, Data Engineering,
+AI Security, LLM Models, Vector database, Generative AI Image Generation,
+Chatbots, Agent frameworks, Open Source models, Kids/Teenagers/College Students,
+Technical Support Professionals.
 
-For each category:
-1. Technical Skills:
-   - List the most in-demand technical skills
-   - Focus on specific tools, languages, and frameworks
-   - Include version control and collaboration tools
-   - Add relevant certifications if applicable
+For each category provide:
+1. **Technical Skills** – most in-demand tools, languages and frameworks,
+   including collaboration/version control and any relevant certifications.
+2. **Career Transition Advice** – how to leverage AI tools, suggested learning
+   resources and integration paths.
 
-2. Career Transition Advice:
-   - Explain how to leverage AI tools in their current role
-   - Suggest integration paths with AI technologies
-   - Recommend learning paths and resources
-   - Highlight opportunities for AI adoption
+Format the response in markdown using category headers with bullet lists of
+skills followed by a short advice paragraph.
 
-Format as markdown with category headers, skills bullets, and transition advice section.
-
-Example format:
+Example:
 ## [Category Name]
 
 ### Key Technical Skills
 - [Skills list]
 
 ### Career Transition to AI
-[Specific advice on how professionals in this field can adopt AI tools and transition to AI-enhanced roles]
+[Advice on adopting AI in this field]
 
-Note: For Data Engineers specifically, emphasize:
-- Adopting AI-based code development tools (Copilot, Codeium)
-- Using Agent frameworks to revamp data engineering pipelines
-- Understanding end-to-end AI app development and cloud deployment
-- Transitioning to Agentic RAG frameworks
+Note: For **Data Engineers** highlight adoption of AI-based code tools,
+agent frameworks for pipelines, full-stack AI deployment and migration to
+Agentic RAG frameworks.
 """
 
     def _analyze_skills(self, data: Dict) -> str:
