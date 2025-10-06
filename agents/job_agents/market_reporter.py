@@ -56,12 +56,27 @@ class MarketReporterAgent(BaseJobAgent):
         
         # Get RAG insights about salary trends
         salary_insights = self.rag_store.analyze_trends("""
-        Analyze salary trends in the job market. Consider:
-        1. Salary ranges for different experience levels
-        2. Industry-specific salary variations
-        3. Location-based salary differences
-        4. Correlation between skills and compensation
-        """)
+Analyze salary trends in the job market. Consider:
+1. Salary ranges for different experience levels
+2. Industry-specific salary variations
+3. Location-based salary differences
+4. Correlation between skills and compensation
+Analyze salary trends in the job market. Consider:
+1. Salary ranges for different experience levels
+2. Industry-specific salary variations
+3. Location-based salary differences
+4. Correlation between skills and compensation
+Analyze salary trends in the job market. Consider:
+1. Salary ranges for different experience levels
+2. Industry-specific salary variations
+3. Location-based salary differences
+4. Correlation between skills and compensation
+Analyze salary trends in the job market. Consider:
+1. Salary ranges for different experience levels
+2. Industry-specific salary variations
+3. Location-based salary differences
+4. Correlation between skills and compensation
+"""
         
         return {
             "statistics": stats,
