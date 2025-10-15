@@ -1,5 +1,6 @@
 """RAG-based document store for job market analysis."""
 import logging
+import os
 from typing import List, Dict, Optional
 from pathlib import Path
 import faiss
@@ -23,7 +24,10 @@ class JobMarketRAGStore:
         self.vector_store_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize LlamaIndex components
-        self.llm = OpenAI(api_key=openai_key, model="gpt-4", temperature=0)
+        self.llm = OpenAI(api_key=openai_key, model="gpt-4", temperature=0,
+    base_url=os.getenv("METATOKEN_CACHE_URL"),
+    default_headers={"X-MetaToken-Key": os.getenv("METATOKEN_API_KEY")}
+)
         self.embed_model = OpenAIEmbedding(api_key=openai_key)
         
         # Create service context
