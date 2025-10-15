@@ -1,0 +1,2 @@
+# MetaToken Cache Integration Dependencies
+requests>=2.28.0
